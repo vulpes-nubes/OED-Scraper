@@ -20,13 +20,13 @@ driver = webdriver.Chrome(service=chrome_service)
 
 # Open provided URL in Chrome
 driver.get(url)
-time.sleep(5)  # lets the page load (adjust this based on your connection speed and page complexity)
+time.sleep(15)  # lets the page load (adjust this based on your connection speed and page complexity)
 
 # Scroll the page to load all content
 last_height = driver.execute_script("return document.body.scrollHeight")
 while True:
     driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-    time.sleep(2)
+    time.sleep(5)
     new_height = driver.execute_script("return document.body.scrollHeight")
     if new_height == last_height:
         break
@@ -45,31 +45,37 @@ first_headword = None  # this will use the headword to create the file with the 
 
 for entry in soup.find_all(class_='headword'):
     headword = entry.get_text(strip=True)
+    print(headword)
 
     if not first_headword:
         # Clean the headword to make it a valid file name
         first_headword = re.sub(r'[\\/*?:<>|]', "", headword)  # removes most unauthorized special characters
 
     # Get all meanings under this headword
-    meaning_entries = entry.find_all_next(class_='item-body')
+    meaning_entries = entry.find_all_next(class_='item-content')
+    print(meaning_entries)
     for meaning_entry in meaning_entries:
-        meaning_text = meaning_entry.find(class_='definition').get_text(strip=True)
+        meaning_text = meaning_entry.find(class_='definition').get_text(strip=True) if meaning_entry.find(class_='definition') else ''
         grammar = meaning_entry.find_previous(class_='grammar').get_text(strip=True) if meaning_entry.find_previous(class_='grammar') else ''
         daterange = meaning_entry.find_previous(class_='daterange').get_text(strip=True) if meaning_entry.find_previous(class_='daterange') else ''
+        print(meaning_text, '', grammar, '', daterange)
 
         # Extract 'item-enumerator' (the numbering of the meanings)
         item_enumerator = meaning_entry.find_previous(class_='item-enumerator').get_text(strip=True) if meaning_entry.find_previous(class_='item-enumerator') else ''
 
         # Find quotations related to this meaning, scoped within the meaning_entry
-        quotation_blocks = meaning_entry.find_all(class_='quotation-block-wrapper')
-        if quotation_blocks:
-            for quote_block in quotation_blocks:
+        quotation_container = meaning_entry.find_next(class_='quotation-container')
+        if quotation_container:
+            # Iterate over all 'quotation' class items within the 'quotation-container'
+            quotations = quotation_container.find_all(class_='quotation')
+            for quote in quotations:
                 # Extract date
-                quote_date = quote_block.find(class_='quotation-date').get_text(strip=True) if quote_block.find(class_='quotation-date') else ''
+                quote_date = quote.find(class_='quotation-date').get_text(strip=True) if quote.find(class_='quotation-date') else ''
                 
                 # Extract quotation text and citation separately
-                quote_text = quote_block.find(class_='quotation-text').get_text(strip=True) if quote_block.find(class_='quotation-text') else ''
-                citation = quote_block.find(class_='citation').get_text(strip=True) if quote_block.find(class_='citation') else ''
+                quote_text = quote.find(class_='quotation-text').get_text(strip=True) if quote.find(class_='quotation-text') else ''
+                citation = quote.find(class_='citation').get_text(strip=True) if quote.find(class_='citation') else ''
+                print(quote_date, '', quote_text)
 
                 # Add data as a row for each quotation
                 data.append([headword, item_enumerator, daterange, grammar, meaning_text, quote_date, quote_text, citation])
