@@ -30,7 +30,7 @@ for index, url in enumerate(url_list):
     
     # Open the URL in Chrome
     driver.get(url)
-    time.sleep(15)  # lets the page load (adjust this based on your connection speed and page complexity)
+    time.sleep(5)  # lets the page load (adjust this based on your connection speed and page complexity)
 
     # Scroll the page to load all content
     last_height = driver.execute_script("return document.body.scrollHeight")
