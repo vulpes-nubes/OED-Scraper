@@ -1,29 +1,28 @@
-#All code is open source and under creative commons atribution licence, please respect that
 import tkinter as tk
 from tkinter import simpledialog
 from selenium import webdriver
-from selenium.webdriver.firefox.service import Service
+from selenium.webdriver.chrome.service import Service
 from bs4 import BeautifulSoup
 import pandas as pd
 import time
 import re
 
-#Initialising
+# Initializing
 root = tk.Tk()
-root.withdraw() #to hide the root window
+root.withdraw()  # to hide the root window
 
-#Get the URL for the OED page that is to be scraped
+# Get the URL for the OED page that is to be scraped
 url = simpledialog.askstring("Input", "Paste OED URL here:")
 
-#Startup the Firefox WebDriver
-firefox_service = Service('/usr/local/bin/geckodriver') #path to your geckdriver, edit as needed
-driver = webdriver.Firefox(service=firefox_service)
+# Set up Chrome WebDriver
+chrome_service = Service('/usr/local/bin/chromedriver')  # path to your chromedriver, edit as needed
+driver = webdriver.Chrome(service=chrome_service)
 
-#Open provided URL in firefox
+# Open provided URL in Chrome
 driver.get(url)
-time.sleep(15) #lets the page load (adjust this based on your connection speed and page complexity)
+time.sleep(5)  # lets the page load (adjust this based on your connection speed and page complexity)
 
-#Load the full page by scrolling it
+# Scroll the page to load all content
 last_height = driver.execute_script("return document.body.scrollHeight")
 while True:
     driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
@@ -33,49 +32,62 @@ while True:
         break
     last_height = new_height
 
-#Get the page source code and close the browser
+# Get the page source code and close the browser
 html_source = driver.page_source
 driver.quit()
 
-#parse the source code using beautifulsoup
+# Parse the source code using BeautifulSoup
 soup = BeautifulSoup(html_source, 'html.parser')
 
-#extract data with given CSS classes
+# Extract data
 data = []
-first_headword = None #this will use the headword to create the file with the same name
+first_headword = None  # this will use the headword to create the file with the same name
 
 for entry in soup.find_all(class_='headword'):
     headword = entry.get_text(strip=True)
 
-    if not first_headword: 
-        #clean the headword to make it a valid file name
-        first_headword = re.sub(r'[\\/*?:<>|]', "", headword) #removes most unauthorised special characters
+    if not first_headword:
+        # Clean the headword to make it a valid file name
+        first_headword = re.sub(r'[\\/*?:<>|]', "", headword)  # removes most unauthorized special characters
 
-    daterange = entry.find_next(class_='daterange').get_text(strip=True) if entry.find_next(class_='daterange') else ''
-    grammar = entry.find_next(class_='grammar').get_text(strip=True) if entry.find_next(class_='grammar') else ''
-    definition = entry.find_next(class_='definition').get_text(strip=True) if entry.find_next(class_='definition') else ''
+    # Get all meanings under this headword
+    meaning_entries = entry.find_all_next(class_='item-body')
+    for meaning_entry in meaning_entries:
+        meaning_text = meaning_entry.find(class_='definition').get_text(strip=True)
+        grammar = meaning_entry.find_previous(class_='grammar').get_text(strip=True) if meaning_entry.find_previous(class_='grammar') else ''
+        daterange = meaning_entry.find_previous(class_='daterange').get_text(strip=True) if meaning_entry.find_previous(class_='daterange') else ''
 
-    quotations = entry.find_next(class_='quotation-block-wrapper')
-    if quotations:
-        quote_date = quotations.find(class_='quotation-date').get_text(strip=True) if quotations.find(class_='quotation-date') else ''
-        quote_body = quotations.find(class_='quotation-body').get_text(strip=True) if quotations.find(class_='quotation-body') else ''
-    else:
-        quote_date, quote_body = '', ''
+        # Extract 'item-enumerator' (the numbering of the meanings)
+        item_enumerator = meaning_entry.find_previous(class_='item-enumerator').get_text(strip=True) if meaning_entry.find_previous(class_='item-enumerator') else ''
 
-    #add data as a row 
-    data.append([headword, daterange, grammar, definition, quote_date, quote_body])
+        # Find quotations related to this meaning, scoped within the meaning_entry
+        quotation_blocks = meaning_entry.find_all(class_='quotation-block-wrapper')
+        if quotation_blocks:
+            for quote_block in quotation_blocks:
+                # Extract date
+                quote_date = quote_block.find(class_='quotation-date').get_text(strip=True) if quote_block.find(class_='quotation-date') else ''
+                
+                # Extract quotation text and citation separately
+                quote_text = quote_block.find(class_='quotation-text').get_text(strip=True) if quote_block.find(class_='quotation-text') else ''
+                citation = quote_block.find(class_='citation').get_text(strip=True) if quote_block.find(class_='citation') else ''
 
-#take that data into Pandas
-columns = ['Headword', 'Meaning Date Range', 'Grammar', 'Meaning', 'Quotation date', 'Quotation body']
+                # Add data as a row for each quotation
+                data.append([headword, item_enumerator, daterange, grammar, meaning_text, quote_date, quote_text, citation])
+        else:
+            # Add row without quotation if there are no quotations for this meaning
+            data.append([headword, item_enumerator, daterange, grammar, meaning_text, '', '', ''])
+
+# Create DataFrame from the extracted data
+columns = ['Headword', 'Item Enumerator', 'Date Range', 'Grammar', 'Meaning', 'Quotation Date', 'Quotation Text', 'Citation']
 df = pd.DataFrame(data, columns=columns)
 
-#Use headword as file name
+# Use the headword as the file name
 if first_headword:
     filename = f"{first_headword}.xlsx"
 else:
-    filename = "extracted_data.xlsx" #in case there is not a correct name to use
+    filename = "extracted_data.xlsx"  # in case there is not a correct name to use
 
-#export data to Excel file
+# Export data to Excel file
 df.to_excel(filename, index=False)
 
 print(f"Data scraping done. The file '{filename}' has been generated.")
