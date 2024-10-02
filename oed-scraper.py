@@ -55,7 +55,13 @@ for entry in soup.find_all(class_='headword'):
     meaning_entries = entry.find_all_next(class_='item-content')
     print(meaning_entries)
     for meaning_entry in meaning_entries:
-        meaning_text = meaning_entry.find(class_='definition').get_text(strip=True) if meaning_entry.find(class_='definition') else ''
+        # Updated: Extracting text with spaces between sub-elements in the 'definition' class
+        definition_element = meaning_entry.find(class_='definition')
+        if definition_element:
+            meaning_text = ' '.join(definition_element.stripped_strings)
+        else:
+            meaning_text = ''
+
         grammar = meaning_entry.find_previous(class_='grammar').get_text(strip=True) if meaning_entry.find_previous(class_='grammar') else ''
         daterange = meaning_entry.find_previous(class_='daterange').get_text(strip=True) if meaning_entry.find_previous(class_='daterange') else ''
         print(meaning_text, '', grammar, '', daterange)

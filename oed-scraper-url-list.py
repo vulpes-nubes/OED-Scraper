@@ -30,13 +30,13 @@ for index, url in enumerate(url_list):
     
     # Open the URL in Chrome
     driver.get(url)
-    time.sleep(5)  # lets the page load (adjust this based on your connection speed and page complexity)
+    time.sleep(3)  # lets the page load (adjust this based on your connection speed and page complexity)
 
     # Scroll the page to load all content
     last_height = driver.execute_script("return document.body.scrollHeight")
     while True:
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(5)
+        time.sleep(2)
         new_height = driver.execute_script("return document.body.scrollHeight")
         if new_height == last_height:
             break
@@ -63,7 +63,13 @@ for index, url in enumerate(url_list):
         # Get all meanings under this headword
         meaning_entries = entry.find_all_next(class_='item-content')
         for meaning_entry in meaning_entries:
-            meaning_text = meaning_entry.find(class_='definition').get_text(strip=True) if meaning_entry.find(class_='definition') else ''
+            # Updated: Extracting text with spaces between sub-elements in the 'definition' class
+            definition_element = meaning_entry.find(class_='definition')
+            if definition_element:
+                meaning_text = ' '.join(definition_element.stripped_strings)
+            else:
+                meaning_text = ''
+
             grammar = meaning_entry.find_previous(class_='grammar').get_text(strip=True) if meaning_entry.find_previous(class_='grammar') else ''
             daterange = meaning_entry.find_previous(class_='daterange').get_text(strip=True) if meaning_entry.find_previous(class_='daterange') else ''
             
