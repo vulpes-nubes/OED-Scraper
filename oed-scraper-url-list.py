@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import time
 import re
+import os
 
 # Initializing
 root = tk.Tk()
@@ -16,6 +17,13 @@ url_list_path = filedialog.askopenfilename(title="Select the URL list file", fil
 if not url_list_path:
     print("No file selected. Exiting.")
     exit()
+
+# Get the directory of the selected file and create 'scraped' subdirectory
+base_dir = os.path.dirname(url_list_path)
+scraped_dir = os.path.join(base_dir, 'scraped')
+
+# Create the 'scraped' directory if it doesn't exist
+os.makedirs(scraped_dir, exist_ok=True)
 
 # Load URLs from the selected file
 with open(url_list_path, 'r') as file:
@@ -30,13 +38,13 @@ for index, url in enumerate(url_list):
     
     # Open the URL in Chrome
     driver.get(url)
-    time.sleep(3)  # lets the page load (adjust this based on your connection speed and page complexity)
+    time.sleep(2)  # lets the page load (adjust this based on your connection speed and page complexity)
 
     # Scroll the page to load all content
     last_height = driver.execute_script("return document.body.scrollHeight")
     while True:
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(2)
+        time.sleep(1)
         new_height = driver.execute_script("return document.body.scrollHeight")
         if new_height == last_height:
             break
@@ -101,9 +109,10 @@ for index, url in enumerate(url_list):
     else:
         filename = f"extracted_data_{index + 1}.xlsx"  # Fallback filename in case of no data
 
-    # Export data to Excel file
-    df.to_excel(filename, index=False)
-    print(f"Data for URL {url} has been exported to '{filename}'.")
+    # Save the Excel file in the 'scraped' directory
+    filepath = os.path.join(scraped_dir, filename)
+    df.to_excel(filepath, index=False)
+    print(f"Data for URL {url} has been exported to '{filepath}'.")
 
 # Close the browser
 driver.quit()
