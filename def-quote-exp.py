@@ -2,10 +2,10 @@ import os
 import pandas as pd
 
 # Directory where the Excel files are stored
-excel_directory = '/path here'
+excel_directory = '/home/gray221/Documents/PHD docs/OED Lists/scraped'
 
 # Output directory for the text files
-output_directory = '/path here'
+output_directory = '/home/gray221/Documents/PHD docs/OED Lists/m_q'
 if not os.path.exists(output_directory):
     os.makedirs(output_directory)
 
