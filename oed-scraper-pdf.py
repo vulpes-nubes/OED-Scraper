@@ -55,3 +55,4 @@ def process_urls_from_file(input_file):
 if __name__ == "__main__":
     input_file = "urls.txt"  # Name of the text file with URLs
     process_urls_from_file(input_file)
+    
