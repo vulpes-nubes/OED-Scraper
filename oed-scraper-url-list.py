@@ -62,42 +62,38 @@ for index, url in enumerate(url_list):
 
     for entry in soup.find_all(class_='headword'):
         headword = entry.get_text(strip=True)
-        print(headword)
-
         if not first_headword:
-            # Clean the headword to make it a valid file name
-            first_headword = re.sub(r'[\\/*?:<>|]', "", headword)  # removes most unauthorized special characters
+            first_headword = re.sub(r'[\\/*?:<>|]', "", headword)
 
-        # Get all meanings under this headword
         meaning_entries = entry.find_all_next(class_='item-content')
         for meaning_entry in meaning_entries:
-            # Updated: Extracting text with spaces between sub-elements in the 'definition' class
             definition_element = meaning_entry.find(class_='definition')
-            if definition_element:
-                meaning_text = ' '.join(definition_element.stripped_strings)
-            else:
-                meaning_text = ''
+            meaning_text = ' '.join(definition_element.stripped_strings) if definition_element else ''
 
             grammar = meaning_entry.find_previous(class_='grammar').get_text(strip=True) if meaning_entry.find_previous(class_='grammar') else ''
             daterange = meaning_entry.find_previous(class_='daterange').get_text(strip=True) if meaning_entry.find_previous(class_='daterange') else ''
-            
-            # Extract 'item-enumerator'
             item_enumerator = meaning_entry.find_previous(class_='item-enumerator').get_text(strip=True) if meaning_entry.find_previous(class_='item-enumerator') else ''
 
-            # Find quotations related to this meaning
+            # Prepare one "header row" for the meaning
+            base_info = [headword, item_enumerator, daterange, grammar, meaning_text]
+
             quotation_container = meaning_entry.find_next(class_='quotation-container')
             if quotation_container:
                 quotations = quotation_container.find_all(class_='quotation')
+                first_quote = True
                 for quote in quotations:
                     quote_date = quote.find(class_='quotation-date').get_text(strip=True) if quote.find(class_='quotation-date') else ''
                     quote_text = quote.find(class_='quotation-text').get_text(strip=True) if quote.find(class_='quotation-text') else ''
                     citation = quote.find(class_='citation').get_text(strip=True) if quote.find(class_='citation') else ''
-                    
-                    # Add data as a row for each quotation
-                    data.append([headword, item_enumerator, daterange, grammar, meaning_text, quote_date, quote_text, citation])
+
+                    if first_quote:
+                        data.append(base_info + [quote_date, quote_text, citation])
+                        first_quote = False
+                    else:
+                        data.append(['', '', '', '', '', quote_date, quote_text, citation])
             else:
-                # Add row without quotation if there are no quotations for this meaning
-                data.append([headword, item_enumerator, daterange, grammar, meaning_text, '', '', ''])
+                # No quotations: just add the base info
+                data.append(base_info + ['', '', ''])
 
     # Create DataFrame from the extracted data
     columns = ['Headword', 'Item Enumerator', 'Date Range', 'Grammar', 'Meaning', 'Quotation Date', 'Quotation Text', 'Citation']
