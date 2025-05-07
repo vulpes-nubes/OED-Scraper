@@ -5,61 +5,79 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import pandas as pd
 
-def select_folder():
-    root = tk.Tk()
-    root.withdraw()
-    folder = filedialog.askdirectory(title="Select Folder with Excel Files")
-    if folder:
-        print(f"[INFO] Selected folder: {folder}")
-    return folder
-
 def get_search_parameters():
+    user_input = {"folder": None, "query": None, "column": None, "search_all": False}
+
+    def select_folder():
+        path = filedialog.askdirectory(title="Select Folder with Files")
+        if path:
+            entry_folder.delete(0, tk.END)
+            entry_folder.insert(0, path)
+
     def submit():
+        folder = entry_folder.get()
         query = entry_query.get()
         column = entry_column.get()
         search_all = var_search_all.get()
-        if not query:
-            messagebox.showerror("Missing Query", "Please enter a search query.")
+
+        if not folder or not os.path.isdir(folder):
+            messagebox.showerror("Error", "Please select a valid folder.")
             return
+        if not query:
+            messagebox.showerror("Error", "Please enter a search query.")
+            return
+
+        user_input["folder"] = folder
+        user_input["query"] = query
+        user_input["column"] = column
+        user_input["search_all"] = bool(search_all)
         root.destroy()
-        root.query = query
-        root.column = column
-        root.search_all = bool(search_all)
 
     root = tk.Tk()
-    root.title("Search Parameters")
+    root.title("Search Configuration")
 
-    tk.Label(root, text="Search Query (Regex or Word):").grid(row=0, column=0, sticky="e")
-    entry_query = tk.Entry(root, width=40)
-    entry_query.grid(row=0, column=1)
+    tk.Label(root, text="Folder Containing Excel/CSV Files:").grid(row=0, column=0, sticky="e")
+    entry_folder = tk.Entry(root, width=50)
+    entry_folder.grid(row=0, column=1)
+    tk.Button(root, text="Browse", command=select_folder).grid(row=0, column=2)
 
-    tk.Label(root, text="Column Name (leave blank if searching all columns):").grid(row=1, column=0, sticky="e")
-    entry_column = tk.Entry(root, width=40)
-    entry_column.grid(row=1, column=1)
+    tk.Label(root, text="Search Query (Regex or Word):").grid(row=1, column=0, sticky="e")
+    entry_query = tk.Entry(root, width=50)
+    entry_query.grid(row=1, column=1, columnspan=2)
+
+    tk.Label(root, text="Column Name (optional):").grid(row=2, column=0, sticky="e")
+    entry_column = tk.Entry(root, width=50)
+    entry_column.grid(row=2, column=1, columnspan=2)
 
     var_search_all = tk.IntVar()
-    tk.Checkbutton(root, text="Search Entire Document", variable=var_search_all).grid(row=2, columnspan=2)
+    tk.Checkbutton(root, text="Search Entire Document", variable=var_search_all).grid(row=3, columnspan=3)
 
-    tk.Button(root, text="OK", command=submit).grid(row=3, columnspan=2, pady=10)
+    tk.Button(root, text="Start Search", command=submit).grid(row=4, columnspan=3, pady=10)
 
     root.mainloop()
-    print(f"[INFO] Search query: {root.query}")
-    print(f"[INFO] Column name: {root.column if root.column else '(none specified)'}")
-    print(f"[INFO] Search all columns: {'Yes' if root.search_all else 'No'}")
-    return root.query, root.column, root.search_all
+    print(f"[INFO] Selected folder: {user_input['folder']}")
+    print(f"[INFO] Search query: {user_input['query']}")
+    print(f"[INFO] Column name: {user_input['column'] if user_input['column'] else '(none specified)'}")
+    print(f"[INFO] Search all columns: {'Yes' if user_input['search_all'] else 'No'}")
 
-def search_excel_files(folder_path, query, column_name, search_all):
+    return user_input["folder"], user_input["query"], user_input["column"], user_input["search_all"]
+
+def search_files(folder_path, query, column_name, search_all):
     results = []
+    print("[INFO] Beginning search across Excel and CSV files...")
 
-    print("[INFO] Starting search through Excel files...")
     for filename in os.listdir(folder_path):
-        if not filename.endswith((".xlsx", ".xls")):
+        if not filename.endswith((".xlsx", ".xls", ".csv")):
             continue
 
         filepath = os.path.join(folder_path, filename)
         print(f"\n[PROCESSING] File: {filename}")
+
         try:
-            df = pd.read_excel(filepath, dtype=str)
+            if filename.endswith(".csv"):
+                df = pd.read_csv(filepath, dtype=str, encoding='utf-8', engine='python')
+            else:
+                df = pd.read_excel(filepath, dtype=str)
         except Exception as e:
             print(f"[ERROR] Could not read {filename}: {e}")
             continue
@@ -109,13 +127,8 @@ def save_results(results, output_path="search_results.csv"):
     print(f"\n[INFO] Results written to {output_path}")
 
 def main():
-    folder = select_folder()
-    if not folder:
-        messagebox.showinfo("Cancelled", "No folder selected.")
-        return
-
-    query, column_name, search_all = get_search_parameters()
-    results = search_excel_files(folder, query, column_name, search_all)
+    folder, query, column_name, search_all = get_search_parameters()
+    results = search_files(folder, query, column_name, search_all)
 
     if results:
         save_results(results)
