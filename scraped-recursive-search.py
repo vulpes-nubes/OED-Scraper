@@ -6,7 +6,15 @@ from tkinter import filedialog, messagebox
 import pandas as pd
 
 def get_search_parameters():
-    user_input = {"folder": None, "query": None, "column": None, "search_all": False}
+    user_input = {
+        "folder": None,
+        "query": None,
+        "column": None,
+        "search_all": False,
+        "only_excel": False,
+        "only_csv": False,
+        "case_insensitive": False
+    }
 
     def select_folder():
         path = filedialog.askdirectory(title="Select Folder with Files")
@@ -19,6 +27,9 @@ def get_search_parameters():
         query = entry_query.get()
         column = entry_column.get()
         search_all = var_search_all.get()
+        only_excel = var_excel_only.get()
+        only_csv = var_csv_only.get()
+        case_insensitive = var_case_insensitive.get()
 
         if not folder or not os.path.isdir(folder):
             messagebox.showerror("Error", "Please select a valid folder.")
@@ -26,17 +37,27 @@ def get_search_parameters():
         if not query:
             messagebox.showerror("Error", "Please enter a search query.")
             return
+        if only_excel and only_csv:
+            messagebox.showerror("Error", "Cannot select both 'Only Excel' and 'Only CSV'.")
+            return
 
-        user_input["folder"] = folder
-        user_input["query"] = query
-        user_input["column"] = column
-        user_input["search_all"] = bool(search_all)
+        user_input.update({
+            "folder": folder,
+            "query": query,
+            "column": column,
+            "search_all": bool(search_all),
+            "only_excel": bool(only_excel),
+            "only_csv": bool(only_csv),
+            "case_insensitive": bool(case_insensitive)
+        })
+
+        root.quit()
         root.destroy()
 
     root = tk.Tk()
     root.title("Search Configuration")
 
-    tk.Label(root, text="Folder Containing Excel/CSV Files:").grid(row=0, column=0, sticky="e")
+    tk.Label(root, text="Folder Containing Files:").grid(row=0, column=0, sticky="e")
     entry_folder = tk.Entry(root, width=50)
     entry_folder.grid(row=0, column=1)
     tk.Button(root, text="Browse", command=select_folder).grid(row=0, column=2)
@@ -50,28 +71,59 @@ def get_search_parameters():
     entry_column.grid(row=2, column=1, columnspan=2)
 
     var_search_all = tk.IntVar()
-    tk.Checkbutton(root, text="Search Entire Document", variable=var_search_all).grid(row=3, columnspan=3)
+    tk.Checkbutton(root, text="Search Entire Document", variable=var_search_all).grid(row=3, columnspan=3, sticky="w", padx=10)
 
-    tk.Button(root, text="Start Search", command=submit).grid(row=4, columnspan=3, pady=10)
+    var_case_insensitive = tk.IntVar()
+    tk.Checkbutton(root, text="Case-Insensitive Search", variable=var_case_insensitive).grid(row=4, columnspan=3, sticky="w", padx=10)
+
+    var_excel_only = tk.IntVar()
+    tk.Checkbutton(root, text="Only Excel Files", variable=var_excel_only).grid(row=5, columnspan=3, sticky="w", padx=10)
+
+    var_csv_only = tk.IntVar()
+    tk.Checkbutton(root, text="Only CSV Files", variable=var_csv_only).grid(row=6, columnspan=3, sticky="w", padx=10)
+
+    tk.Button(root, text="Start Search", command=submit).grid(row=7, columnspan=3, pady=10)
 
     root.mainloop()
-    print(f"[INFO] Selected folder: {user_input['folder']}")
-    print(f"[INFO] Search query: {user_input['query']}")
-    print(f"[INFO] Column name: {user_input['column'] if user_input['column'] else '(none specified)'}")
-    print(f"[INFO] Search all columns: {'Yes' if user_input['search_all'] else 'No'}")
 
-    return user_input["folder"], user_input["query"], user_input["column"], user_input["search_all"]
+    # Ensure all inputs were properly collected
+    if user_input["folder"] is None:
+        return None
 
-def search_files(folder_path, query, column_name, search_all):
+    print("\n[INFO] Configuration Summary:")
+    for k, v in user_input.items():
+        print(f"  - {k.replace('_', ' ').capitalize()}: {v}")
+
+    return user_input
+
+def search_files(config):
     results = []
-    print("[INFO] Beginning search across Excel and CSV files...")
+    folder_path = config["folder"]
+    query = config["query"]
+    column_name = config["column"]
+    search_all = config["search_all"]
+    case_insensitive = config["case_insensitive"]
+
+    filetypes = []
+    if config["only_excel"]:
+        filetypes = [".xlsx", ".xls"]
+    elif config["only_csv"]:
+        filetypes = [".csv"]
+    else:
+        filetypes = [".xlsx", ".xls", ".csv"]
+
+    # Prepare regex
+    regex_flags = re.IGNORECASE if case_insensitive else 0
+    pattern = re.compile(query, flags=regex_flags)
+
+    print("\n[INFO] Beginning search...\n")
 
     for filename in os.listdir(folder_path):
-        if not filename.endswith((".xlsx", ".xls", ".csv")):
+        if not any(filename.endswith(ext) for ext in filetypes):
             continue
 
         filepath = os.path.join(folder_path, filename)
-        print(f"\n[PROCESSING] File: {filename}")
+        print(f"[PROCESSING] File: {filename}")
 
         try:
             if filename.endswith(".csv"):
@@ -90,7 +142,7 @@ def search_files(folder_path, query, column_name, search_all):
         if search_all:
             for i, row in df.iterrows():
                 for j, cell in enumerate(row):
-                    if re.search(query, str(cell)):
+                    if pattern.search(str(cell)):
                         matches.append(str(cell))
                         total_matches += 1
                         print(f"  [MATCH] Row {i + 1}, Column {df.columns[j]}: {cell}")
@@ -99,14 +151,14 @@ def search_files(folder_path, query, column_name, search_all):
                 print(f"[WARNING] Column '{column_name}' not found in {filename}")
                 continue
             for i, cell in enumerate(df[column_name]):
-                if re.search(query, str(cell)):
+                if pattern.search(str(cell)):
                     matches.append(str(cell))
                     total_matches += 1
                     print(f"  [MATCH] Row {i + 1}: {cell}")
 
         if total_matches > 0:
             percentage = (total_matches / total_non_empty_cells) * 100 if total_non_empty_cells > 0 else 0
-            print(f"[RESULT] {total_matches} matches in {filename}, {percentage:.2f}% of non-empty cells")
+            print(f"[RESULT] {total_matches} matches, {percentage:.2f}% of non-empty cells in {filename}")
             results.append({
                 "File Name": filename,
                 "Matched Cells": " | ".join(matches),
@@ -124,17 +176,21 @@ def save_results(results, output_path="search_results.csv"):
         writer.writeheader()
         for row in results:
             writer.writerow(row)
-    print(f"\n[INFO] Results written to {output_path}")
+    print(f"\n[INFO] Results saved to: {output_path}")
 
 def main():
-    folder, query, column_name, search_all = get_search_parameters()
-    results = search_files(folder, query, column_name, search_all)
+    config = get_search_parameters()
+    if not config:
+        messagebox.showinfo("Cancelled", "Operation cancelled.")
+        return
+
+    results = search_files(config)
 
     if results:
         save_results(results)
         messagebox.showinfo("Done", f"Search complete. Found matches in {len(results)} file(s).")
     else:
-        print("[INFO] No matches found across all files.")
+        print("[INFO] No matches found.")
         messagebox.showinfo("No Matches", "No matches found in the selected files.")
 
 if __name__ == "__main__":
