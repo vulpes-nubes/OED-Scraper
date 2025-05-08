@@ -9,7 +9,7 @@ import time
 import re
 import os
 
-# Initializing
+# Initialize and hide Tkinter root window
 root = tk.Tk()
 root.withdraw()
 
@@ -19,7 +19,7 @@ if not url_list_path:
     print("No file selected. Exiting.")
     exit()
 
-# Create 'scraped' directory if it doesn't exist
+# Create 'scraped' subdirectory if it doesn't exist
 base_dir = os.path.dirname(url_list_path)
 scraped_dir = os.path.join(base_dir, 'scraped')
 os.makedirs(scraped_dir, exist_ok=True)
@@ -28,15 +28,16 @@ os.makedirs(scraped_dir, exist_ok=True)
 with open(url_list_path, 'r') as file:
     url_list = [line.strip() for line in file.readlines() if line.strip()]
 
-# Set up WebDriver using webdriver-manager
+# Setup WebDriver using webdriver-manager (auto-updates driver version)
 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
 
+# Scrape each URL
 for index, url in enumerate(url_list):
     print(f"Scraping URL: {url}")
     driver.get(url)
     time.sleep(2)
 
-    # Scroll to load full page
+    # Scroll to load all content
     last_height = driver.execute_script("return document.body.scrollHeight")
     while True:
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
@@ -59,32 +60,44 @@ for index, url in enumerate(url_list):
         if not first_headword:
             first_headword = re.sub(r'[\\/*?:<>|]', "", headword)
 
-        # Get etymology text
+        # Get full etymology (including .etymology-summary)
         etymology_section = entry.find_next(class_='etymology')
-        if etymology_section:
-            etymology_text = ' '.join(etymology_section.stripped_strings)
-        else:
-            etymology_text = ''
+        etymology_text = ''
 
-        # Get all meanings
+        if etymology_section:
+            # .etymology-summary content
+            summary = etymology_section.find(class_='etymology-summary')
+            if summary:
+                etymology_text += ' '.join(summary.stripped_strings)
+
+            # Other parts of .etymology
+            other_parts = [
+                tag for tag in etymology_section.find_all(recursive=False)
+                if 'etymology-summary' not in (tag.get('class') or [])
+            ]
+            extra_text = ' '.join(tag.get_text(strip=True, separator=' ') for tag in other_parts)
+            if extra_text and extra_text not in etymology_text:
+                etymology_text += ' ' + extra_text
+
+            etymology_text = etymology_text.strip()
+
+        # Process meanings and quotations
         meaning_entries = entry.find_all_next(class_='item-content')
         last_meaning_text = None
 
         for meaning_entry in meaning_entries:
             definition_element = meaning_entry.find(class_='definition')
-            if definition_element:
-                meaning_text = ' '.join(definition_element.stripped_strings)
-            else:
-                meaning_text = ''
+            meaning_text = ' '.join(definition_element.stripped_strings) if definition_element else ''
 
             grammar = meaning_entry.find_previous(class_='grammar').get_text(strip=True) if meaning_entry.find_previous(class_='grammar') else ''
             daterange = meaning_entry.find_previous(class_='daterange').get_text(strip=True) if meaning_entry.find_previous(class_='daterange') else ''
             item_enumerator = meaning_entry.find_previous(class_='item-enumerator').get_text(strip=True) if meaning_entry.find_previous(class_='item-enumerator') else ''
 
-            # Avoid repeating same meaning
+            # Track if this is a new meaning
             new_meaning = meaning_text != last_meaning_text
             last_meaning_text = meaning_text if new_meaning else ''
 
+            # Extract quotations
             quotation_container = meaning_entry.find_next(class_='quotation-container')
             if quotation_container:
                 quotations = quotation_container.find_all(class_='quotation')
@@ -104,9 +117,9 @@ for index, url in enumerate(url_list):
                         quote_text,
                         citation
                     ])
-                    # After first row, avoid repeating etymology
-                    etymology_text = ''
+                    # Avoid repeating
                     headword = ''
+                    etymology_text = ''
             else:
                 data.append([
                     headword,
@@ -119,8 +132,8 @@ for index, url in enumerate(url_list):
                     '',
                     ''
                 ])
-                etymology_text = ''
                 headword = ''
+                etymology_text = ''
 
     # Write to Excel
     columns = [
@@ -141,5 +154,6 @@ for index, url in enumerate(url_list):
     df.to_excel(filepath, index=False)
     print(f"Data for URL {url} has been exported to '{filepath}'.")
 
+# Clean up
 driver.quit()
 print("Data scraping complete for all URLs.")
