@@ -15,7 +15,7 @@ pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
 class PDFOCRApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("PDF OCR Tool (Ubuntu - Multithreaded)")
+        self.root.title("PDF OCR Tool")
 
         self.pdf_paths = []
         self.lock = threading.Lock()
@@ -76,7 +76,7 @@ class PDFOCRApp:
         thread.start()
 
     def run_multithreaded_ocr(self):
-        with ThreadPoolExecutor(max_workers=8) as executor:
+        with ThreadPoolExecutor(max_workers=4) as executor:
             futures = []
             for pdf_path in self.pdf_paths:
                 futures.append(executor.submit(self.convert_pdf_to_searchable, pdf_path))
